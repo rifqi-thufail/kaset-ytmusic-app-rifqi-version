@@ -1,0 +1,160 @@
+import SwiftUI
+
+/// Library view displaying user's playlists.
+@available(macOS 26.0, *)
+struct LibraryView: View {
+    @State var viewModel: LibraryViewModel
+    @Environment(PlayerService.self) private var playerService
+    @Environment(FavoritesManager.self) private var favoritesManager
+    @State private var networkMonitor = NetworkMonitor.shared
+
+    @State private var navigationPath = NavigationPath()
+
+    var body: some View {
+        NavigationStack(path: self.$navigationPath) {
+            Group {
+                if !self.networkMonitor.isConnected {
+                    ErrorView(
+                        title: "No Connection",
+                        message: "Please check your internet connection and try again."
+                    ) {
+                        Task { await self.viewModel.refresh() }
+                    }
+                } else {
+                    switch self.viewModel.loadingState {
+                    case .idle, .loading:
+                        LoadingView("Loading your library...")
+                    case .loaded, .loadingMore:
+                        self.contentView
+                    case let .error(error):
+                        ErrorView(error: error) {
+                            Task { await self.viewModel.refresh() }
+                        }
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .navigationTitle("Library")
+            .navigationDestination(for: Playlist.self) { playlist in
+                PlaylistDetailView(
+                    playlist: playlist,
+                    viewModel: PlaylistDetailViewModel(
+                        playlist: playlist,
+                        client: self.viewModel.client
+                    )
+                )
+            }
+        }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            PlayerBar()
+        }
+        .task {
+            if self.viewModel.loadingState == .idle {
+                await self.viewModel.load()
+            }
+        }
+        .refreshable {
+            await self.viewModel.refresh()
+        }
+    }
+
+    // MARK: - Views
+
+    private var contentView: some View {
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 24) {
+                // Playlists section
+                self.playlistsSection
+            }
+            .padding(.horizontal, 24)
+            .padding(.vertical, 20)
+        }
+    }
+
+    private var playlistsSection: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Playlists")
+                .font(.title2)
+                .fontWeight(.semibold)
+
+            if self.viewModel.playlists.isEmpty {
+                self.emptyPlaylistsView
+            } else {
+                LazyVGrid(columns: [
+                    GridItem(.adaptive(minimum: 160, maximum: 200), spacing: 16),
+                ], spacing: 16) {
+                    ForEach(self.viewModel.playlists) { playlist in
+                        self.playlistCard(playlist)
+                    }
+                }
+            }
+        }
+    }
+
+    private var emptyPlaylistsView: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "music.note.list")
+                .font(.largeTitle)
+                .foregroundStyle(.secondary)
+
+            Text("No playlists yet")
+                .font(.headline)
+                .foregroundStyle(.secondary)
+
+            Text("Create playlists on YouTube Music to see them here.")
+                .font(.subheadline)
+                .foregroundStyle(.tertiary)
+                .multilineTextAlignment(.center)
+        }
+        .padding(.vertical, 40)
+        .frame(maxWidth: .infinity)
+    }
+
+    private func playlistCard(_ playlist: Playlist) -> some View {
+        Button {
+            self.navigationPath.append(playlist)
+        } label: {
+            VStack(alignment: .leading, spacing: 8) {
+                // Thumbnail
+                CachedAsyncImage(url: playlist.thumbnailURL?.highQualityThumbnailURL) { image in
+                    image
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                } placeholder: {
+                    Rectangle()
+                        .fill(.quaternary)
+                        .overlay {
+                            Image(systemName: "music.note.list")
+                                .font(.largeTitle)
+                                .foregroundStyle(.secondary)
+                        }
+                }
+                .frame(width: 160, height: 160)
+                .clipShape(.rect(cornerRadius: 8))
+
+                // Title
+                Text(playlist.title)
+                    .font(.system(size: 13, weight: .medium))
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+                    .frame(width: 160, alignment: .leading)
+
+                // Track count
+                if let count = playlist.trackCount {
+                    Text("\(count) songs")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+#Preview {
+    let authService = AuthService()
+    let client = YTMusicClient(authService: authService, webKitManager: .shared)
+    LibraryView(viewModel: LibraryViewModel(client: client))
+        .environment(PlayerService())
+        .environment(FavoritesManager.shared)
+}

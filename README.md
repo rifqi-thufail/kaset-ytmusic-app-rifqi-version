@@ -1,0 +1,88 @@
+# Kaset
+
+A native macOS YouTube Music client built with Swift and SwiftUI.
+
+<img src="docs/screenshot.png" alt="Kaset Screenshot">
+
+## Features
+
+- 🎵 **Native macOS Experience** — Apple Music-style UI with Liquid Glass player bar and clean sidebar navigation
+- 🎧 **YouTube Music Premium Support** — Full playback of DRM-protected content via your existing subscription
+- 🎛️ **System Integration** — Now Playing in Control Center, media key support, Dock menu controls
+- 📳 **Haptic Feedback** — Tactile feedback on Force Touch trackpads for player controls and navigation
+- 🎶 **Track Notifications** — Get notified when a new track starts playing
+- 🔊 **Background Audio** — Music continues playing when the window is closed; stops on quit
+- ⌨️ **Keyboard Shortcuts** — Full keyboard control for playback, navigation, and more
+- 🧭 **Explore** — Discover new releases, charts, and moods & genres
+- 📚 **Library Access** — Browse your playlists, liked songs, albums, and artists
+- 🔍 **Search** — Find songs, albums, artists, and playlists
+- ✨ **Apple Intelligence** — On-device AI for natural language commands, lyrics explanations, and playlist refinement
+- 📜 **Lyrics** — View song lyrics with AI-powered explanations and mood analysis
+- 📃 **Queue Management** — View, reorder, shuffle, and clear your playback queue
+- 🔗 **Share** — Share songs, playlists, albums, and artists via the native macOS share sheet
+- 🔗 **URL Scheme** — Open songs directly with `kaset://play?v=VIDEO_ID`
+
+## Requirements
+
+- macOS 26.0 or later
+- [YouTube Music Premium](https://www.youtube.com/musicpremium) subscription
+
+## Installation
+
+### Download
+
+Download the latest release from the [Releases](https://github.com/sozercan/kaset/releases) page.
+
+### Homebrew
+
+```bash
+brew tap sozercan/kaset https://github.com/sozercan/kaset
+brew install --cask kaset --no-quarantine
+```
+
+> **Note:** The `--no-quarantine` flag is required because the app is not signed.
+> If you downloaded the app manually, you can remove the quarantine attribute with:
+> ```bash
+> xattr -d com.apple.quarantine /Applications/Kaset.app
+> ```
+
+## Keyboard Shortcuts
+
+### Playback
+
+| Shortcut | Action                              |
+| -------- | ----------------------------------- |
+| `Space`  | Play / Pause                        |
+| `⌘→`     | Next track                          |
+| `⌘←`     | Previous track                      |
+| `⌘↑`     | Volume up                           |
+| `⌘↓`     | Volume down                         |
+| `⌘⇧M`    | Mute / Unmute                       |
+| `⌘S`     | Toggle shuffle                      |
+| `⌘R`     | Cycle repeat mode (Off → All → One) |
+
+### Navigation
+
+| Shortcut | Action           |
+| -------- | ---------------- |
+| `⌘1`     | Go to Home       |
+| `⌘2`     | Go to Explore    |
+| `⌘3`     | Go to Library    |
+| `⌘F`     | Go to Search     |
+| `⌘K`     | Open Command Bar |
+
+## URL Scheme
+
+Kaset supports a custom URL scheme for opening content directly:
+
+```bash
+# Play a song by video ID
+open "kaset://play?v=dQw4w9WgXcQ"
+```
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, architecture, and coding guidelines.
+
+## Disclaimer
+Kaset is an unofficial application and not affiliated with YouTube or Google Inc. in any way. "YouTube", "YouTube Music" and the "YouTube Logo" are registered trademarks of Google Inc.

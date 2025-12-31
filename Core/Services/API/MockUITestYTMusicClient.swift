@@ -1,0 +1,401 @@
+import Foundation
+
+/// A mock implementation of YTMusicClientProtocol for UI testing.
+/// Returns predictable data from environment variables or defaults.
+@MainActor
+final class MockUITestYTMusicClient: YTMusicClientProtocol {
+    // MARK: - Continuation State
+
+    var hasMoreHomeSections: Bool { false }
+    var hasMoreExploreSections: Bool { false }
+    var hasMoreChartsSections: Bool { false }
+    var hasMoreMoodsAndGenresSections: Bool { false }
+    var hasMoreNewReleasesSections: Bool { false }
+    var hasMorePodcastsSections: Bool { false }
+
+    // MARK: - Mock Data
+
+    private let homeSections: [HomeSection]
+    private let exploreSections: [HomeSection]
+    private let searchResults: SearchResponse
+    private let playlists: [Playlist]
+    private let likedSongs: [Song]
+
+    init() {
+        // Parse mock data from environment variables, or use defaults
+        self.homeSections = Self.parseHomeSections() ?? Self.defaultHomeSections()
+        self.exploreSections = Self.parseHomeSections() ?? Self.defaultHomeSections()
+        self.searchResults = Self.parseSearchResults() ?? Self.defaultSearchResults()
+        self.playlists = Self.parsePlaylists() ?? Self.defaultPlaylists()
+        self.likedSongs = Self.defaultLikedSongs()
+    }
+
+    // MARK: - Protocol Implementation
+
+    func getHome() async throws -> HomeResponse {
+        // Simulate network delay
+        try? await Task.sleep(for: .milliseconds(100))
+        return HomeResponse(sections: self.homeSections)
+    }
+
+    func getHomeContinuation() async throws -> [HomeSection]? {
+        nil
+    }
+
+    func getExplore() async throws -> HomeResponse {
+        try? await Task.sleep(for: .milliseconds(100))
+        return HomeResponse(sections: self.exploreSections)
+    }
+
+    func getExploreContinuation() async throws -> [HomeSection]? {
+        nil
+    }
+
+    func getCharts() async throws -> HomeResponse {
+        try? await Task.sleep(for: .milliseconds(100))
+        return HomeResponse(sections: Self.defaultHomeSections())
+    }
+
+    func getChartsContinuation() async throws -> [HomeSection]? {
+        nil
+    }
+
+    func getMoodsAndGenres() async throws -> HomeResponse {
+        try? await Task.sleep(for: .milliseconds(100))
+        return HomeResponse(sections: Self.defaultHomeSections())
+    }
+
+    func getMoodsAndGenresContinuation() async throws -> [HomeSection]? {
+        nil
+    }
+
+    func getNewReleases() async throws -> HomeResponse {
+        try? await Task.sleep(for: .milliseconds(100))
+        return HomeResponse(sections: Self.defaultHomeSections())
+    }
+
+    func getNewReleasesContinuation() async throws -> [HomeSection]? {
+        nil
+    }
+
+    func getPodcasts() async throws -> HomeResponse {
+        try? await Task.sleep(for: .milliseconds(100))
+        return HomeResponse(sections: Self.defaultHomeSections())
+    }
+
+    func getPodcastsContinuation() async throws -> [HomeSection]? {
+        nil
+    }
+
+    func search(query _: String) async throws -> SearchResponse {
+        try? await Task.sleep(for: .milliseconds(100))
+        return self.searchResults
+    }
+
+    func searchSongs(query _: String) async throws -> [Song] {
+        try? await Task.sleep(for: .milliseconds(100))
+        return self.searchResults.songs
+    }
+
+    func getSearchSuggestions(query: String) async throws -> [SearchSuggestion] {
+        try? await Task.sleep(for: .milliseconds(50))
+        return [
+            SearchSuggestion(query: "\(query) songs"),
+            SearchSuggestion(query: "\(query) artist"),
+            SearchSuggestion(query: "\(query) album"),
+        ]
+    }
+
+    func getLibraryPlaylists() async throws -> [Playlist] {
+        try? await Task.sleep(for: .milliseconds(100))
+        return self.playlists
+    }
+
+    func getLikedSongs() async throws -> [Song] {
+        try? await Task.sleep(for: .milliseconds(100))
+        return self.likedSongs
+    }
+
+    func getPlaylist(id: String) async throws -> PlaylistDetail {
+        try? await Task.sleep(for: .milliseconds(100))
+        let playlist = self.playlists.first { $0.id == id } ?? Playlist(
+            id: id,
+            title: "Test Playlist",
+            description: "A test playlist",
+            thumbnailURL: nil,
+            trackCount: 10,
+            author: "Test User"
+        )
+        return PlaylistDetail(
+            playlist: playlist,
+            tracks: Self.defaultSongs(count: 10),
+            duration: "30 minutes"
+        )
+    }
+
+    func getArtist(id: String) async throws -> ArtistDetail {
+        try? await Task.sleep(for: .milliseconds(100))
+        let artist = Artist(id: id, name: "Test Artist", thumbnailURL: nil)
+        return ArtistDetail(
+            artist: artist,
+            description: "A mock artist for UI testing",
+            songs: Self.defaultSongs(count: 5),
+            albums: Self.defaultAlbums(count: 3),
+            thumbnailURL: nil
+        )
+    }
+
+    func getArtistSongs(browseId _: String, params _: String?) async throws -> [Song] {
+        try? await Task.sleep(for: .milliseconds(100))
+        return Self.defaultSongs(count: 20)
+    }
+
+    func rateSong(videoId _: String, rating _: LikeStatus) async throws {
+        // No-op for UI tests
+    }
+
+    func editSongLibraryStatus(feedbackTokens _: [String]) async throws {
+        // No-op for UI tests
+    }
+
+    func subscribeToPlaylist(playlistId _: String) async throws {
+        // No-op for UI tests
+    }
+
+    func unsubscribeFromPlaylist(playlistId _: String) async throws {
+        // No-op for UI tests
+    }
+
+    func subscribeToArtist(channelId _: String) async throws {
+        // No-op for UI tests
+    }
+
+    func unsubscribeFromArtist(channelId _: String) async throws {
+        // No-op for UI tests
+    }
+
+    func getLyrics(videoId _: String) async throws -> Lyrics {
+        try? await Task.sleep(for: .milliseconds(100))
+        return Lyrics(
+            text: "These are mock lyrics for UI testing.\n\nVerse 1 of the song.\nVerse 2 of the song.",
+            source: "Mock Source"
+        )
+    }
+
+    func getSong(videoId: String) async throws -> Song {
+        try? await Task.sleep(for: .milliseconds(100))
+        return Song(
+            id: videoId,
+            title: "Mock Song",
+            artists: [Artist(id: "mock-artist", name: "Mock Artist")],
+            videoId: videoId
+        )
+    }
+
+    func getRadioQueue(videoId: String) async throws -> [Song] {
+        try? await Task.sleep(for: .milliseconds(100))
+        // Return a radio queue based on the seed song
+        return (0 ..< 25).map { index in
+            Song(
+                id: "radio-\(videoId)-\(index)",
+                title: "Radio Song \(index + 1)",
+                artists: [Artist(id: "radio-artist-\(index % 5)", name: "Radio Artist \(index % 5 + 1)")],
+                album: nil,
+                duration: TimeInterval(180 + index * 5),
+                thumbnailURL: nil,
+                videoId: "radio-video-\(videoId)-\(index)"
+            )
+        }
+    }
+
+    func getMoodCategory(browseId _: String, params _: String?) async throws -> HomeResponse {
+        try? await Task.sleep(for: .milliseconds(100))
+        // Return mock mood category content
+        let songs = (0 ..< 10).map { index in
+            Song(
+                id: "mood-song-\(index)",
+                title: "Mood Song \(index + 1)",
+                artists: [Artist(id: "mood-artist-\(index % 3)", name: "Mood Artist \(index % 3 + 1)")],
+                videoId: "mood-video-\(index)"
+            )
+        }
+        let items = songs.map { HomeSectionItem.song($0) }
+        let section = HomeSection(id: "mood-section", title: "Top Songs", items: items)
+        return HomeResponse(sections: [section])
+    }
+
+    // MARK: - Environment Parsing
+
+    private static func parseHomeSections() -> [HomeSection]? {
+        guard let jsonString = UITestConfig.environmentValue(for: UITestConfig.mockHomeSectionsKey),
+              let data = jsonString.data(using: .utf8),
+              let sections = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]]
+        else {
+            return nil
+        }
+
+        return sections.compactMap { dict -> HomeSection? in
+            guard let id = dict["id"] as? String,
+                  let title = dict["title"] as? String
+            else {
+                return nil
+            }
+
+            let items: [HomeSectionItem] = (dict["items"] as? [[String: Any]])?.compactMap { itemDict in
+                guard let itemId = itemDict["id"] as? String,
+                      let itemTitle = itemDict["title"] as? String,
+                      let videoId = itemDict["videoId"] as? String
+                else {
+                    return nil
+                }
+                let artist = itemDict["artist"] as? String ?? "Unknown Artist"
+                let song = Song(
+                    id: itemId,
+                    title: itemTitle,
+                    artists: [Artist(id: "mock-artist", name: artist)],
+                    videoId: videoId
+                )
+                return .song(song)
+            } ?? []
+
+            return HomeSection(id: id, title: title, items: items)
+        }
+    }
+
+    private static func parseSearchResults() -> SearchResponse? {
+        guard let jsonString = UITestConfig.environmentValue(for: UITestConfig.mockSearchResultsKey),
+              let data = jsonString.data(using: .utf8),
+              let dict = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        else {
+            return nil
+        }
+
+        let songs = (dict["songs"] as? [[String: Any]])?.compactMap { songDict -> Song? in
+            guard let id = songDict["id"] as? String,
+                  let title = songDict["title"] as? String,
+                  let videoId = songDict["videoId"] as? String
+            else {
+                return nil
+            }
+            let artist = songDict["artist"] as? String ?? "Unknown"
+            return Song(
+                id: id,
+                title: title,
+                artists: [Artist(id: "mock", name: artist)],
+                videoId: videoId
+            )
+        } ?? []
+
+        return SearchResponse(songs: songs, albums: [], artists: [], playlists: [])
+    }
+
+    private static func parsePlaylists() -> [Playlist]? {
+        guard let jsonString = UITestConfig.environmentValue(for: UITestConfig.mockPlaylistsKey),
+              let data = jsonString.data(using: .utf8),
+              let playlists = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]]
+        else {
+            return nil
+        }
+
+        return playlists.compactMap { dict in
+            guard let id = dict["id"] as? String,
+                  let title = dict["title"] as? String
+            else {
+                return nil
+            }
+            return Playlist(
+                id: id,
+                title: title,
+                description: nil,
+                thumbnailURL: nil,
+                trackCount: dict["trackCount"] as? Int,
+                author: dict["author"] as? String
+            )
+        }
+    }
+
+    // MARK: - Default Data
+
+    private static func defaultHomeSections() -> [HomeSection] {
+        [
+            HomeSection(
+                id: "quick-picks",
+                title: "Quick picks",
+                items: self.defaultSongs(count: 8).map { .song($0) }
+            ),
+            HomeSection(
+                id: "listen-again",
+                title: "Listen again",
+                items: self.defaultSongs(count: 6).map { .song($0) }
+            ),
+            HomeSection(
+                id: "recommended",
+                title: "Recommended",
+                items: self.defaultSongs(count: 10).map { .song($0) }
+            ),
+        ]
+    }
+
+    private static func defaultSearchResults() -> SearchResponse {
+        SearchResponse(
+            songs: self.defaultSongs(count: 5),
+            albums: self.defaultAlbums(count: 2),
+            artists: [
+                Artist(id: "artist-1", name: "Search Artist 1", thumbnailURL: nil),
+                Artist(id: "artist-2", name: "Search Artist 2", thumbnailURL: nil),
+            ],
+            playlists: self.defaultPlaylists()
+        )
+    }
+
+    private static func defaultPlaylists() -> [Playlist] {
+        (0 ..< 5).map { index in
+            Playlist(
+                id: "playlist-\(index)",
+                title: "My Playlist \(index + 1)",
+                description: "A great playlist",
+                thumbnailURL: nil,
+                trackCount: 10 + index * 5,
+                author: "Test User"
+            )
+        }
+    }
+
+    private static func defaultLikedSongs() -> [Song] {
+        self.defaultSongs(count: 20)
+    }
+
+    private static func defaultSongs(count: Int) -> [Song] {
+        (0 ..< count).map { index in
+            Song(
+                id: "song-\(index)",
+                title: "Test Song \(index + 1)",
+                artists: [Artist(id: "artist-\(index % 3)", name: "Artist \(index % 3 + 1)")],
+                album: Album(
+                    id: "album-\(index % 5)",
+                    title: "Album \(index % 5 + 1)",
+                    artists: nil,
+                    thumbnailURL: nil,
+                    year: "2024",
+                    trackCount: 12
+                ),
+                duration: TimeInterval(180 + index * 10),
+                thumbnailURL: nil,
+                videoId: "video-\(index)"
+            )
+        }
+    }
+
+    private static func defaultAlbums(count: Int) -> [Album] {
+        (0 ..< count).map { index in
+            Album(
+                id: "album-\(index)",
+                title: "Test Album \(index + 1)",
+                artists: [Artist(id: "artist-\(index)", name: "Album Artist \(index + 1)")],
+                thumbnailURL: nil,
+                year: "2024",
+                trackCount: 10 + index
+            )
+        }
+    }
+}
