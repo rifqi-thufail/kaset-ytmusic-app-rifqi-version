@@ -1266,7 +1266,7 @@
                 ASSETCATALOG_COMPILER_APPICON_NAME = kaset;
                 ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
                 CODE_SIGN_ENTITLEMENTS = App/Kaset.Debug.entitlements;
-                CODE_SIGN_STYLE = Automatic;
+                CODE_SIGN_STYLE = Manual;
                 COMBINE_HIDPI_IMAGES = YES;
                 CURRENT_PROJECT_VERSION = 1;
                 DEAD_CODE_STRIPPING = YES;
@@ -1284,7 +1284,7 @@
                     "@executable_path/../Frameworks",
                 );
                 MARKETING_VERSION = 1.0;
-                PRODUCT_BUNDLE_IDENTIFIER = com.sertacozercan.Kaset;
+                PRODUCT_BUNDLE_IDENTIFIER = com.rifqithufail.Kaset;
                 PRODUCT_NAME = "$(TARGET_NAME)";
                 SWIFT_EMIT_LOC_STRINGS = YES;
                 SWIFT_VERSION = 6.0;
@@ -1297,7 +1297,7 @@
                 ASSETCATALOG_COMPILER_APPICON_NAME = kaset;
                 ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
                 CODE_SIGN_ENTITLEMENTS = App/Kaset.entitlements;
-                CODE_SIGN_STYLE = Automatic;
+                CODE_SIGN_STYLE = Manual;
                 COMBINE_HIDPI_IMAGES = YES;
                 CURRENT_PROJECT_VERSION = 1;
                 DEAD_CODE_STRIPPING = YES;
@@ -1315,7 +1315,7 @@
                     "@executable_path/../Frameworks",
                 );
                 MARKETING_VERSION = 1.0;
-                PRODUCT_BUNDLE_IDENTIFIER = com.sertacozercan.Kaset;
+                PRODUCT_BUNDLE_IDENTIFIER = com.rifqithufail.Kaset;
                 PRODUCT_NAME = "$(TARGET_NAME)";
                 SWIFT_EMIT_LOC_STRINGS = YES;
                 SWIFT_VERSION = 6.0;
@@ -1326,7 +1326,7 @@
             isa = XCBuildConfiguration;
             buildSettings = {
                 BUNDLE_LOADER = "$(TEST_HOST)";
-                CODE_SIGN_STYLE = Automatic;
+                CODE_SIGN_STYLE = Manual;
                 CURRENT_PROJECT_VERSION = 1;
                 DEAD_CODE_STRIPPING = YES;
                 DEVELOPMENT_TEAM = "";
@@ -1345,7 +1345,7 @@
             isa = XCBuildConfiguration;
             buildSettings = {
                 BUNDLE_LOADER = "$(TEST_HOST)";
-                CODE_SIGN_STYLE = Automatic;
+                CODE_SIGN_STYLE = Manual;
                 CURRENT_PROJECT_VERSION = 1;
                 DEAD_CODE_STRIPPING = YES;
                 DEVELOPMENT_TEAM = "";
@@ -1363,7 +1363,7 @@
         E50000110000000000000007 /* Debug */ = {
             isa = XCBuildConfiguration;
             buildSettings = {
-                CODE_SIGN_STYLE = Automatic;
+                CODE_SIGN_STYLE = Manual;
                 CURRENT_PROJECT_VERSION = 1;
                 DEAD_CODE_STRIPPING = YES;
                 DEVELOPMENT_TEAM = "";
@@ -1381,7 +1381,7 @@
         E50000110000000000000008 /* Release */ = {
             isa = XCBuildConfiguration;
             buildSettings = {
-                CODE_SIGN_STYLE = Automatic;
+                CODE_SIGN_STYLE = Manual;
                 CURRENT_PROJECT_VERSION = 1;
                 DEAD_CODE_STRIPPING = YES;
                 DEVELOPMENT_TEAM = "";
