@@ -216,9 +216,9 @@ struct PlaylistDetailView: View {
 
                 if index < tracks.count - 1 {
                     Divider()
-                        // For albums: 28 (index) + 12 (spacing)
-                        // For playlists: 28 (index) + 12 (spacing) + 40 (thumbnail) + 16 (spacing)
-                        .padding(.leading, isAlbum ? 40 : 96)
+                        // For albums: 32 (index) + 12 (spacing)
+                        // For playlists: 32 (index) + 12 (spacing) + 40 (thumbnail) + 16 (spacing)
+                        .padding(.leading, isAlbum ? 44 : 100)
                 }
             }
         }
@@ -230,6 +230,7 @@ struct PlaylistDetailView: View {
         } label: {
             HStack(alignment: .center, spacing: 12) {
                 // Now playing indicator or index
+                // Use consistent width for proper alignment (accounts for double digits like "10", "11", etc.)
                 Group {
                     if self.playerService.currentTrack?.videoId == track.videoId {
                         NowPlayingIndicator(isPlaying: self.playerService.isPlaying, size: 14)
@@ -239,7 +240,7 @@ struct PlaylistDetailView: View {
                             .foregroundStyle(.secondary)
                     }
                 }
-                .frame(width: 28, alignment: .trailing)
+                .frame(width: 32, alignment: .center) // Increased width and centered for better alignment
 
                 // Thumbnail - only show for playlists (different album art per track)
                 // Albums share the same artwork, so we hide per-track thumbnails
@@ -257,18 +258,25 @@ struct PlaylistDetailView: View {
                 }
 
                 // Title and artist
+                // For albums: only show artist if it differs from album artist (collabs/features)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(track.title)
                         .font(.system(size: 14))
                         .foregroundStyle(self.playerService.currentTrack?.videoId == track.videoId ? .red : .primary)
                         .lineLimit(1)
 
-                    Text(track.artistsDisplay)
-                        .font(.system(size: 12))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
+                    // Only show artist for playlists OR for albums with collaborations
+                    if !isAlbum || self.hasCollaboration(track, in: tracks) {
+                        Text(track.artistsDisplay)
+                            .font(.system(size: 12))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
+
+                // Ellipsis menu button in accent-colored circle
+                self.trackMenuButton(track: track, index: index, tracks: tracks)
 
                 // Duration
                 Text(track.durationDisplay)
@@ -276,69 +284,98 @@ struct PlaylistDetailView: View {
                     .foregroundStyle(.secondary)
                     .frame(width: 45, alignment: .trailing)
             }
-            .padding(.vertical, 8)
+            .padding(.vertical, 12) // Increased from 8 for more breathing room
             .padding(.horizontal, 4)
             .contentShape(Rectangle())
         }
         .buttonStyle(.interactiveRow(cornerRadius: 6))
         .staggeredAppearance(index: min(index, 10))
         .contextMenu {
-            Button {
-                self.playTrackInQueue(tracks: tracks, startingAt: index)
-            } label: {
-                Label("Play", systemImage: "play.fill")
-            }
+            self.trackContextMenuContent(track: track, index: index, tracks: tracks)
+        }
+    }
 
-            Button {
-                self.playerService.addToQueue(track)
-            } label: {
-                Label("Add to Queue", systemImage: "text.badge.plus")
-            }
+    /// Shared context menu content for track actions (used by both right-click and ellipsis button)
+    @ViewBuilder
+    private func trackContextMenuContent(track: Song, index: Int, tracks: [Song]) -> some View {
+        Button {
+            self.playTrackInQueue(tracks: tracks, startingAt: index)
+        } label: {
+            Label("Play", systemImage: "play.fill")
+        }
 
-            Divider()
+        Button {
+            self.playerService.addToQueue(track)
+        } label: {
+            Label("Add to Queue", systemImage: "text.badge.plus")
+        }
 
-            FavoritesContextMenu.menuItem(for: track, manager: self.favoritesManager)
+        Button {
+            self.playerService.insertNextInQueue([track])
+        } label: {
+            Label("Play Next", systemImage: "text.line.first.and.arrowtriangle.forward")
+        }
 
-            Divider()
+        Divider()
 
-            LikeDislikeContextMenu(song: track, likeStatusManager: self.likeStatusManager)
+        FavoritesContextMenu.menuItem(for: track, manager: self.favoritesManager)
 
-            Divider()
+        Divider()
 
-            Button {
-                SongActionsHelper.addToLibrary(track, playerService: self.playerService)
-            } label: {
-                Label("Add to Library", systemImage: "plus.circle")
-            }
+        LikeDislikeContextMenu(song: track, likeStatusManager: self.likeStatusManager)
 
-            Divider()
+        Divider()
 
-            ShareContextMenu.menuItem(for: track)
+        Button {
+            SongActionsHelper.addToLibrary(track, playerService: self.playerService)
+        } label: {
+            Label("Add to Library", systemImage: "plus.circle")
+        }
 
-            Divider()
+        Divider()
 
-            // Go to Artist - show first artist with valid ID
-            if let artist = track.artists.first(where: { !$0.id.isEmpty && $0.id != UUID().uuidString }) {
-                NavigationLink(value: artist) {
-                    Label("Go to Artist", systemImage: "person")
-                }
-            }
+        ShareContextMenu.menuItem(for: track)
 
-            // Go to Album - show if album has valid browse ID
-            if let album = track.album, album.hasNavigableId {
-                let playlist = Playlist(
-                    id: album.id,
-                    title: album.title,
-                    description: nil,
-                    thumbnailURL: album.thumbnailURL ?? track.thumbnailURL,
-                    trackCount: album.trackCount,
-                    author: album.artistsDisplay
-                )
-                NavigationLink(value: playlist) {
-                    Label("Go to Album", systemImage: "square.stack")
-                }
+        Divider()
+
+        // Go to Artist - show first artist with valid ID
+        if let artist = track.artists.first(where: { !$0.id.isEmpty && $0.id != UUID().uuidString }) {
+            NavigationLink(value: artist) {
+                Label("Go to Artist", systemImage: "person")
             }
         }
+
+        // Go to Album - show if album has valid browse ID
+        if let album = track.album, album.hasNavigableId {
+            let playlist = Playlist(
+                id: album.id,
+                title: album.title,
+                description: nil,
+                thumbnailURL: album.thumbnailURL ?? track.thumbnailURL,
+                trackCount: album.trackCount,
+                author: album.artistsDisplay
+            )
+            NavigationLink(value: playlist) {
+                Label("Go to Album", systemImage: "square.stack")
+            }
+        }
+    }
+
+    /// Menu button for track actions (ellipsis in accent circle)
+    private func trackMenuButton(track: Song, index: Int, tracks: [Song]) -> some View {
+        Menu {
+            self.trackContextMenuContent(track: track, index: index, tracks: tracks)
+        } label: {
+            Image(systemName: "ellipsis")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(.white)
+                .frame(width: 28, height: 28)
+                .background(Color.accentColor)
+                .clipShape(Circle())
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .frame(width: 28)
     }
 
     // MARK: - Actions
@@ -368,6 +405,23 @@ struct PlaylistDetailView: View {
                 self.isAddedToLibrary = true
             }
         }
+    }
+
+    /// Checks if a track has a collaboration (different artist than the album's primary artist).
+    /// Used to determine whether to show artist names in album track lists.
+    private func hasCollaboration(_ track: Song, in tracks: [Song]) -> Bool {
+        // Get the primary artist from the first track (assumed to be the album artist)
+        guard let primaryArtist = tracks.first?.artists.first?.name else {
+            return false
+        }
+        
+        // Check if this track's primary artist differs from the album's primary artist
+        guard let trackArtist = track.artists.first?.name else {
+            return false
+        }
+        
+        // If the track artist doesn't match the primary, or if "feat." is in the title, it's a collab
+        return trackArtist != primaryArtist || track.title.lowercased().contains("feat.")
     }
 
     private func refinePlaylist(tracks: [Song], prompt: String) async {

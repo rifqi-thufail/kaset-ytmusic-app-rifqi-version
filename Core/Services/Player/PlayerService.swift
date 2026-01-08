@@ -292,45 +292,27 @@ final class PlayerService: NSObject, PlayerServiceProtocol {
     /// Flag to track when a song is nearing its end.
     private var songNearingEnd: Bool = false
 
-    /// Updates track metadata when track changes (e.g., via next/previous).
-    /// Also handles enforcing our queue when YouTube autoplay kicks in.
+    /// Updates track metadata when track changes (e.g., via next/previous or media keys).
     func updateTrackMetadata(title: String, artist: String, thumbnailUrl: String) {
         self.logger.debug("Track metadata updated: \(title) - \(artist)")
 
         let thumbnailURL = URL(string: thumbnailUrl)
         let artistObj = Artist(id: "unknown", name: artist)
 
-        // Preserve videoId if we have it
-        let videoId = self.currentTrack?.videoId ?? self.pendingPlayVideoId ?? "unknown"
-
         // Check if track actually changed
         let trackChanged = self.currentTrack?.title != title || self.currentTrack?.artistsDisplay != artist
-
-        // If track changed and we have a queue, check if YouTube autoplay kicked in
-        if trackChanged, !self.queue.isEmpty, self.songNearingEnd {
-            self.songNearingEnd = false
-
-            // Check if the new track matches our expected next track in queue
-            let expectedNextIndex = self.currentIndex + 1
-            if expectedNextIndex < self.queue.count {
-                let expectedNextTrack = self.queue[expectedNextIndex]
-                // If title doesn't match expected next track, YouTube autoplay overrode our queue
-                if title != expectedNextTrack.title {
-                    self.logger.info("YouTube autoplay detected, overriding with queue track")
-                    // Play our queue's next track instead
-                    Task {
-                        await self.next()
-                    }
-                    return
-                } else {
-                    // Track matches our queue, update the index
-                    self.currentIndex = expectedNextIndex
-                    self.logger.info("Track advanced to queue index \(expectedNextIndex)")
-                }
-            }
+        
+        guard trackChanged else {
+            // No change, nothing to do
+            return
         }
 
-        self.currentTrack = Song(
+        // Try to extract videoId from the current URL or use existing
+        // This ensures we have a valid videoId for lyrics, etc.
+        let videoId = self.pendingPlayVideoId ?? self.currentTrack?.videoId ?? "unknown"
+
+        // Create the new song object immediately to update UI
+        let newSong = Song(
             id: videoId,
             title: title,
             artists: [artistObj],
@@ -339,12 +321,66 @@ final class PlayerService: NSObject, PlayerServiceProtocol {
             thumbnailURL: thumbnailURL,
             videoId: videoId
         )
+        
+        // ALWAYS update currentTrack so UI reflects the new song
+        self.currentTrack = newSong
+        self.resetTrackStatus()
+        self.clearLyricsCache()
+        
+        self.logger.info("Track changed to: \(title) by \(artist)")
 
-        // Reset like/library status and clear lyrics cache when track changes
-        if trackChanged {
-            self.resetTrackStatus()
-            self.clearLyricsCache()
+        // If we have a queue and YouTube autoplay kicked in, sync with our queue
+        if !self.queue.isEmpty, self.songNearingEnd {
+            self.songNearingEnd = false
+            
+            let expectedNextIndex = self.currentIndex + 1
+            if expectedNextIndex < self.queue.count {
+                let expectedNextTrack = self.queue[expectedNextIndex]
+                
+                if title == expectedNextTrack.title {
+                    // Track matches our queue expectation - just update index
+                    self.currentIndex = expectedNextIndex
+                    self.logger.info("Track advanced to queue index \(expectedNextIndex)")
+                } else {
+                    // YouTube autoplay played something different - override with our queue
+                    self.logger.info("YouTube autoplay detected, will switch to queue track")
+                    Task {
+                        // Play our queue's next track
+                        self.currentIndex = expectedNextIndex
+                        if let queueTrack = self.queue[safe: expectedNextIndex] {
+                            await self.play(song: queueTrack)
+                        }
+                    }
+                }
+            }
         }
+    }
+
+    /// Handles when a song ends naturally (not via skip).
+    /// Automatically plays the next song from queue if available.
+    func handleSongEnded() async {
+        self.logger.info("Song ended naturally")
+        
+        // If we have a queue and not at the end, play next
+        if !self.queue.isEmpty {
+            if self.currentIndex < self.queue.count - 1 {
+                // More songs in queue
+                await self.next()
+            } else if self.repeatMode == .all {
+                // At end but repeat all is on - loop back
+                self.currentIndex = 0
+                if let firstSong = queue.first {
+                    await self.play(song: firstSong)
+                }
+            } else if self.repeatMode == .one {
+                // Repeat one - play same song again
+                if let currentSong = queue[safe: currentIndex] {
+                    await self.play(song: currentSong)
+                }
+            }
+            // else: At end with repeat off - just stop
+        }
+        // If no queue, let YouTube's autoplay handle it
     }
 
     /// Toggles play/pause.
@@ -383,15 +419,23 @@ final class PlayerService: NSObject, PlayerServiceProtocol {
 
     /// Adds a song to the end of the queue.
     func addToQueue(_ song: Song) {
+        // If queue is empty but we have a current track, initialize queue with current track first
+        // This ensures next/previous work correctly with the queue
+        if self.queue.isEmpty, let currentTrack = self.currentTrack {
+            self.queue.append(currentTrack)
+            self.currentIndex = 0
+            self.logger.info("Initialized queue with current track: \(currentTrack.title)")
+        }
+        
         self.queue.append(song)
-        self.logger.info("Added to queue: \(song.title)")
+        self.logger.info("Added to queue: \(song.title). Queue now has \(self.queue.count) songs.")
     }
 
-    /// Skips to next track.
+    /// Skips to next track. Uses local queue if available, otherwise WebView's next.
     func next() async {
         self.logger.debug("Skipping to next track")
 
-        // Prioritize local queue if we have one
+        // Use local queue if we have one
         if !self.queue.isEmpty {
             // Handle repeat one mode - replay current track
             if self.repeatMode == .one {
@@ -433,44 +477,35 @@ final class PlayerService: NSObject, PlayerServiceProtocol {
         }
     }
 
-    /// Goes to previous track.
+    /// Goes to previous track. Uses local queue if available.
     func previous() async {
         self.logger.debug("Going to previous track")
 
-        // Prioritize local queue if we have one
+        // Use local queue if we have one
         if !self.queue.isEmpty {
             if self.progress > 3 {
-                // Restart current track
-                if self.pendingPlayVideoId != nil {
-                    SingletonPlayerWebView.shared.seek(to: 0)
-                } else {
-                    await self.seek(to: 0)
-                }
+                // Restart current track if more than 3 seconds in
+                await self.seek(to: 0)
             } else if self.currentIndex > 0 {
+                // Go to previous track
                 self.currentIndex -= 1
                 if let prevSong = queue[safe: currentIndex] {
                     await self.play(song: prevSong)
                 }
             } else {
                 // At start of queue, just restart current track
-                if self.pendingPlayVideoId != nil {
-                    SingletonPlayerWebView.shared.seek(to: 0)
-                } else {
-                    await self.seek(to: 0)
-                }
+                await self.seek(to: 0)
             }
             return
         }
 
-        // Fall back to YouTube's previous if no local queue
+        // Fall back to WebView's previous if no local queue
         if self.pendingPlayVideoId != nil {
             if self.progress > 3 {
                 SingletonPlayerWebView.shared.seek(to: 0)
             } else {
                 SingletonPlayerWebView.shared.previous()
             }
-        } else if self.progress > 3 {
-            await self.seek(to: 0)
         }
     }
 
@@ -652,9 +687,17 @@ final class PlayerService: NSObject, PlayerServiceProtocol {
     /// - Parameter songs: The songs to insert into the queue.
     func insertNextInQueue(_ songs: [Song]) {
         guard !songs.isEmpty else { return }
+        
+        // If queue is empty but we have a current track, initialize queue with current track first
+        if self.queue.isEmpty, let currentTrack = self.currentTrack {
+            self.queue.append(currentTrack)
+            self.currentIndex = 0
+            self.logger.info("Initialized queue with current track: \(currentTrack.title)")
+        }
+        
         let insertIndex = min(self.currentIndex + 1, self.queue.count)
         self.queue.insert(contentsOf: songs, at: insertIndex)
-        self.logger.info("Inserted \(songs.count) songs at position \(insertIndex)")
+        self.logger.info("Inserted \(songs.count) songs at position \(insertIndex). Queue now has \(self.queue.count) songs.")
     }
 
     /// Removes songs from the queue by video ID.

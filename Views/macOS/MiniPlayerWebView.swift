@@ -241,6 +241,43 @@ final class SingletonPlayerWebView {
         )
         configuration.userContentController.addUserScript(volumeInitScript)
 
+        // Inject script to disable MediaSession next/previous handlers
+        // This prevents the WebView from competing with our MPRemoteCommandCenter for media key events
+        // Our native MPRemoteCommandCenter (via NowPlayingManager) will handle next/previous
+        // and use PlayerService.next()/previous() which respects our local queue
+        let disableMediaSessionScript = WKUserScript(
+            source: """
+            (function() {
+                'use strict';
+                // Store original setActionHandler
+                const originalSetActionHandler = navigator.mediaSession.setActionHandler.bind(navigator.mediaSession);
+                
+                // Override to block next/previous track handlers
+                navigator.mediaSession.setActionHandler = function(action, handler) {
+                    if (action === 'nexttrack' || action === 'previoustrack') {
+                        // Block these - our native MPRemoteCommandCenter handles them
+                        // This ensures keyboard media keys use our local queue
+                        console.log('[Kaset] Blocked MediaSession ' + action + ' handler');
+                        return;
+                    }
+                    // Allow play/pause and other handlers
+                    return originalSetActionHandler(action, handler);
+                };
+                
+                // Also clear any existing handlers that might have been set before our script ran
+                try {
+                    navigator.mediaSession.setActionHandler('nexttrack', null);
+                    navigator.mediaSession.setActionHandler('previoustrack', null);
+                } catch (e) {}
+                
+                console.log('[Kaset] MediaSession next/previous handlers disabled');
+            })();
+            """,
+            injectionTime: .atDocumentStart,
+            forMainFrameOnly: true
+        )
+        configuration.userContentController.addUserScript(disableMediaSessionScript)
+
         // Inject observer script (at document end)
         let script = WKUserScript(
             source: Self.observerScript,
@@ -494,7 +531,11 @@ final class SingletonPlayerWebView {
                     video.addEventListener('play', startPolling);
                     video.addEventListener('playing', startPolling);
                     video.addEventListener('pause', stopPolling);
-                    video.addEventListener('ended', stopPolling);
+                    video.addEventListener('ended', () => {
+                        stopPolling();
+                        // Notify Swift that song ended so it can play next from queue
+                        bridge.postMessage({ type: 'SONG_ENDED' });
+                    });
                     video.addEventListener('waiting', () => sendUpdate()); // Buffer state
                     video.addEventListener('seeked', () => sendUpdate()); // Seek completed
 
@@ -658,9 +699,18 @@ final class SingletonPlayerWebView {
 
         func userContentController(_: WKUserContentController, didReceive message: WKScriptMessage) {
             guard let body = message.body as? [String: Any],
-                  let type = body["type"] as? String,
-                  type == "STATE_UPDATE"
+                  let type = body["type"] as? String
             else { return }
+            
+            // Handle song ended - play next from queue
+            if type == "SONG_ENDED" {
+                Task { @MainActor in
+                    await self.playerService.handleSongEnded()
+                }
+                return
+            }
+            
+            guard type == "STATE_UPDATE" else { return }
 
             let isPlaying = body["isPlaying"] as? Bool ?? false
             let progress = body["progress"] as? Int ?? 0

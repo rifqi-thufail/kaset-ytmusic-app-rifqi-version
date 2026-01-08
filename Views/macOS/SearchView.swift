@@ -244,20 +244,95 @@ struct SearchView: View {
     }
 
     private var emptyStateView: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "magnifyingglass")
-                .font(.system(size: 48))
-                .foregroundStyle(.tertiary)
+        Group {
+            if self.viewModel.query.isEmpty && !self.viewModel.searchHistory.isEmpty {
+                // Show search history
+                self.searchHistoryView
+            } else {
+                // Show empty state prompt
+                VStack(spacing: 16) {
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: 48))
+                        .foregroundStyle(.tertiary)
 
-            Text(self.viewModel.query.isEmpty ? "Search for your favorite music" : "Press Enter to search")
-                .font(.title3)
-                .foregroundStyle(.secondary)
+                    Text(self.viewModel.query.isEmpty ? "Search for your favorite music" : "Press Enter to search")
+                        .font(.title3)
+                        .foregroundStyle(.secondary)
 
-            Text("Find songs, albums, artists, and playlists")
-                .font(.subheadline)
-                .foregroundStyle(.tertiary)
+                    Text("Find songs, albums, artists, and playlists")
+                        .font(.subheadline)
+                        .foregroundStyle(.tertiary)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private var searchHistoryView: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 0) {
+                // Header
+                HStack {
+                    Text("Recent Searches")
+                        .font(.headline)
+                        .foregroundStyle(.secondary)
+                    
+                    Spacer()
+                    
+                    Button("Clear") {
+                        withAnimation(.easeOut(duration: 0.2)) {
+                            self.viewModel.clearSearchHistory()
+                        }
+                    }
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .buttonStyle(.plain)
+                }
+                .padding(.horizontal, 24)
+                .padding(.vertical, 12)
+
+                Divider()
+                    .padding(.leading, 24)
+
+                // History items
+                ForEach(self.viewModel.searchHistory, id: \.self) { query in
+                    Button {
+                        self.viewModel.selectHistoryItem(query)
+                    } label: {
+                        HStack(spacing: 12) {
+                            Image(systemName: "clock.arrow.circlepath")
+                                .font(.system(size: 14))
+                                .foregroundStyle(.secondary)
+                                .frame(width: 24)
+
+                            Text(query)
+                                .font(.system(size: 14))
+                                .lineLimit(1)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+
+                            Button {
+                                withAnimation(.easeOut(duration: 0.2)) {
+                                    self.viewModel.removeFromHistory(query)
+                                }
+                            } label: {
+                                Image(systemName: "xmark")
+                                    .font(.system(size: 10, weight: .medium))
+                                    .foregroundStyle(.tertiary)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                        .padding(.horizontal, 24)
+                        .padding(.vertical, 10)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.interactiveRow(cornerRadius: 0))
+
+                    Divider()
+                        .padding(.leading, 60)
+                }
+            }
+            .padding(.vertical, 8)
+        }
     }
 
     private var noResultsView: some View {
@@ -364,6 +439,18 @@ struct SearchView: View {
                 Task { await self.playerService.play(song: song) }
             } label: {
                 Label("Play", systemImage: "play.fill")
+            }
+
+            Button {
+                self.playerService.addToQueue(song)
+            } label: {
+                Label("Add to Queue", systemImage: "text.badge.plus")
+            }
+
+            Button {
+                self.playerService.insertNextInQueue([song])
+            } label: {
+                Label("Play Next", systemImage: "text.line.first.and.arrowtriangle.forward")
             }
 
             Divider()

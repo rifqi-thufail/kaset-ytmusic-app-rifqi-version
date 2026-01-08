@@ -25,37 +25,38 @@ struct PlayerBar: View {
     var body: some View {
         GlassEffectContainer(spacing: 0) {
             VStack(spacing: 0) {
-                HStack(spacing: 12) {
+                HStack(spacing: 20) {
                     // Left section: Track info (album art + title/artist)
                     self.trackInfoSection
-
-                    Spacer()
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .layoutPriority(1)
 
                     // Center section: Playback controls
                     self.playbackControls
-
-                    Spacer()
+                        .layoutPriority(2) // Keep controls centered and visible
 
                     // Right section: Actions + Volume + Menu
                     self.rightSection
+                        .frame(maxWidth: .infinity, alignment: .trailing)
+                        .layoutPriority(1)
                 }
-                .padding(.horizontal, 16)
-                .padding(.top, 8)
-                .padding(.bottom, 6)
-
+                .padding(.horizontal, 24)
+                .padding(.vertical, 12)
+                
                 // Progress bar at bottom
                 if self.playerService.currentTrack != nil {
                     self.progressBar
-                        .padding(.horizontal, 20)
+                        .padding(.horizontal, 24)
                         .padding(.bottom, 6)
                 }
             }
-            .frame(height: 52)
+            .frame(height: 72) // Taller, more comfortable touch targets
             .glassEffect(.regular.interactive(), in: .capsule)
             .glassEffectID("playerBar", in: self.playerNamespace)
         }
         .padding(.horizontal, 16)
         .padding(.bottom, 12)
+        .frame(maxWidth: .infinity) // Ensure full width responsiveness
         .background {
             // Keyboard shortcuts for media controls
             Group {

@@ -76,8 +76,62 @@ final class SearchViewModel {
     private var searchTask: Task<Void, Never>?
     private var suggestionsTask: Task<Void, Never>?
 
+    // MARK: - Search History
+
+    private static let searchHistoryKey = "kaset.searchHistory"
+    private static let maxHistoryItems = 10
+
+    /// Recent search history.
+    private(set) var searchHistory: [String] = []
+
     init(client: any YTMusicClientProtocol) {
         self.client = client
+        self.loadSearchHistory()
+    }
+
+    /// Loads search history from UserDefaults.
+    private func loadSearchHistory() {
+        if let history = UserDefaults.standard.stringArray(forKey: Self.searchHistoryKey) {
+            self.searchHistory = history
+        }
+    }
+
+    /// Saves a query to search history.
+    private func saveToHistory(_ query: String) {
+        let trimmed = query.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else { return }
+
+        // Remove if already exists (to move to top)
+        searchHistory.removeAll { $0.lowercased() == trimmed.lowercased() }
+
+        // Add to beginning
+        searchHistory.insert(trimmed, at: 0)
+
+        // Limit to max items
+        if searchHistory.count > Self.maxHistoryItems {
+            searchHistory = Array(searchHistory.prefix(Self.maxHistoryItems))
+        }
+
+        // Persist
+        UserDefaults.standard.set(searchHistory, forKey: Self.searchHistoryKey)
+    }
+
+    /// Removes a specific item from search history.
+    func removeFromHistory(_ query: String) {
+        searchHistory.removeAll { $0 == query }
+        UserDefaults.standard.set(searchHistory, forKey: Self.searchHistoryKey)
+    }
+
+    /// Clears all search history.
+    func clearSearchHistory() {
+        searchHistory = []
+        UserDefaults.standard.removeObject(forKey: Self.searchHistoryKey)
+    }
+
+    /// Selects a history item and triggers search.
+    func selectHistoryItem(_ query: String) {
+        self.query = query
+        self.search()
     }
 
     /// Fetches search suggestions with debounce.
@@ -175,6 +229,7 @@ final class SearchViewModel {
             self.results = searchResults
             self.lastSearchedQuery = currentQuery
             self.loadingState = .loaded
+            self.saveToHistory(currentQuery) // Save successful search to history
             self.logger.info("Search complete: \(searchResults.allItems.count) results")
         } catch {
             // CancellationError is thrown when task is cancelled during URLSession request

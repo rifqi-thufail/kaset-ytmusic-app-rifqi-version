@@ -157,8 +157,11 @@ struct FullScreenPlayerView: View {
         self.isLoadingLyrics = true
         self.lyrics = nil
         
-        // Cancel any existing task? We can't easily, but loadLyrics checks validity
-        Task { await self.loadLyrics(for: track.videoId) }
+        // Clear the PlayerService cache to force a fresh fetch
+        self.playerService.clearLyricsCache()
+        
+        // Load lyrics using track title as identifier when videoId might be stale
+        Task { await self.loadLyricsForTrack(track) }
     }
 
     // MARK: - Mini Player Layout (for very small windows)
@@ -331,8 +334,8 @@ struct FullScreenPlayerView: View {
                 }
             )
             .frame(
-                width: min(geometry.size.width * 0.32, 360),
-                height: min(geometry.size.width * 0.32, 360)
+                width: min(geometry.size.width * 0.28, 320),
+                height: min(geometry.size.width * 0.28, 320)
             )
 
             Spacer()
@@ -340,32 +343,33 @@ struct FullScreenPlayerView: View {
 
             // Track info with action buttons on the right
             self.trackInfoWithActions
-                .frame(maxWidth: min(geometry.size.width * 0.38, 400))
+                .frame(maxWidth: min(geometry.size.width * 0.35, 380))
 
             Spacer()
                 .frame(height: 24)
 
             // Progress bar
             self.progressSection
-                .frame(maxWidth: min(geometry.size.width * 0.38, 400))
+                .frame(maxWidth: min(geometry.size.width * 0.35, 380))
 
             Spacer()
                 .frame(height: 32)
 
             // Playback controls
             self.playbackControls
-                .frame(maxWidth: min(geometry.size.width * 0.4, 440))
+                .frame(maxWidth: min(geometry.size.width * 0.38, 420))
 
             Spacer()
                 .frame(height: 24)
 
             // Volume control (full width)
             self.volumeControl
-                .frame(maxWidth: min(geometry.size.width * 0.38, 400))
+                .frame(maxWidth: min(geometry.size.width * 0.35, 380))
 
             Spacer()
         }
-        .padding(.horizontal, 48)
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, 32)
     }
 
     // MARK: - Lyrics Column with Apple Music-style fade
@@ -1014,6 +1018,66 @@ struct FullScreenPlayerView: View {
         }
 
         if self.playerService.currentTrack?.videoId == videoId {
+            self.isLoadingLyrics = false
+        }
+    }
+
+    /// Loads lyrics for a track, using title for verification instead of videoId.
+    /// This is more reliable when tracks change via media keys where videoId may be stale.
+    private func loadLyricsForTrack(_ track: Song) async {
+        let trackTitle = track.title
+        let artistName = track.artistsDisplay
+        let videoId = track.videoId
+        
+        self.isLoadingLyrics = true
+        self.currentLineIndex = 0
+        
+        let duration = self.playerService.duration > 0 ? self.playerService.duration : nil
+
+        // Try LRCLib first for timed/synced lyrics
+        if !artistName.isEmpty, !trackTitle.isEmpty, trackTitle != "Loading..." {
+            if let lrcLyrics = await LRCLibService.fetchLyrics(
+                artist: artistName,
+                track: trackTitle,
+                duration: duration
+            ) {
+                // Verify we're still on the same track by title (more reliable than videoId)
+                if self.playerService.currentTrack?.title == trackTitle {
+                    self.lyrics = lrcLyrics
+                    self.playerService.cacheLyrics(lrcLyrics, for: videoId)
+                    self.logger.info("Loaded timed lyrics from LRCLib for: \(trackTitle)")
+                    self.isLoadingLyrics = false
+                }
+                return
+            }
+        }
+
+        // Fall back to YouTube Music lyrics (plain text)
+        // Only try if we have a valid videoId (not "unknown")
+        if videoId != "unknown" {
+            do {
+                let fetchedLyrics = try await client.getLyrics(videoId: videoId)
+                // Verify we're still on the same track by title
+                if self.playerService.currentTrack?.title == trackTitle {
+                    self.lyrics = fetchedLyrics
+                    self.playerService.cacheLyrics(fetchedLyrics, for: videoId)
+                    self.logger.info("Loaded lyrics from YouTube Music for: \(trackTitle)")
+                }
+            } catch {
+                // Only log error if we're still on the same track
+                if self.playerService.currentTrack?.title == trackTitle {
+                    self.logger.debug("Failed to load lyrics: \(error.localizedDescription)")
+                    self.lyrics = nil
+                }
+            }
+        } else {
+            // No valid videoId, just mark as no lyrics if LRCLib didn't find any
+            if self.playerService.currentTrack?.title == trackTitle {
+                self.lyrics = nil
+            }
+        }
+
+        if self.playerService.currentTrack?.title == trackTitle {
             self.isLoadingLyrics = false
         }
     }
